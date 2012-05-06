@@ -387,6 +387,109 @@ bool Control::deliverSMSToMS(const char *callingPartyDigits, const char* message
 	return success;
 }
 
+bool Control::deliverRPDUToMS(unsigned TI, LogicalChannel *LCH)
+{
+	unsigned reference = random() % 255;
+	//BitVector RPDUbits(strlen(message)*4);
+	//if (!RPDUbits.unhex(message)) {
+	//	LOG(WARN) << "Hex string parsing failed (in incoming SIP MESSAGE)";
+	//	throw UnexpectedMessage();
+	//}
+
+	//RPData rp_data;
+	//try {
+	//	RLFrame RPDU(RPDUbits);
+	//	LOG(DEBUG) << "SMS RPDU: " << RPDU;
+
+	//	rp_data.parse(RPDU);
+	//	LOG(DEBUG) << "SMS RP-DATA " << rp_data;
+	//}
+	//catch (SMSReadError) {
+	//	LOG(WARN) << "SMS parsing failed (above L3)";
+		// Cause 95, "semantically incorrect message".
+	//	LCH->send(CPData(1,TI,RPError(95,reference)),3);
+	//	throw UnexpectedMessage();
+	//}
+	//catch (L3ReadError) {
+	//	LOG(WARN) << "SMS parsing failed (in L3)";
+		// TODO:: send error back to the phone
+	//	throw UnsupportedMessage();
+	//}
+
+	std::string myRPDU = "014603a1000000138003a121f30000117042711404e104d4f29c0e";
+	myRPDU = gConfig.getStr("Control.SendWelcomeRPDU");
+	//const char myRPDU[] = "014603a1000000138003a121f30000117042711404e104d4f29c0e";
+
+	LOG(DEBUG) << "SMS DATA SendWelcomeRPDU: " << myRPDU;
+
+	CPData deliver(0,TI,myRPDU);
+	//CPData deliver(0,TI,rp_data);
+
+	// Start ABM in SAP3.
+	LCH->send(ESTABLISH,3);
+	// Wait for SAP3 ABM to connect.
+	// The next read on SAP3 should the ESTABLISH primitive.
+	// This won't return NULL.  It will throw an exception if it fails.
+	delete getFrameSMS(LCH,ESTABLISH);
+
+	LOG(INFO) << "sending " << deliver;
+	LCH->send(deliver,3);
+
+	// Step 2
+	// Get the CP-ACK.
+	// FIXME -- Check TI.
+	LOG(DEBUG) << "MTSMS: waiting for CP-ACK";
+	L3Frame *CM = getFrameSMS(LCH);
+	LOG(DEBUG) << "MTSMS: ack from MS " << *CM;
+	if (CM->MTI()!=CPMessage::ACK) {
+		LOG(WARN) << "MS rejected our RP-DATA with CP message with TI=" << CM->MTI();
+		throw UnexpectedMessage();
+	}
+
+	// Step 3
+	// Get CP-DATA containing RP-ACK and message reference.
+	LOG(DEBUG) << "MTSMS: waiting for RP-ACK";
+	CM = getFrameSMS(LCH);
+	LOG(DEBUG) << "MTSMS: data from MS " << *CM;
+	if (CM->MTI()!=CPMessage::DATA) {
+		LOG(NOTICE) << "Unexpected SMS CP message with TI=" << CM->MTI();
+		throw UnexpectedMessage();
+	}
+
+	// FIXME -- Check TI.
+
+	// Parse to check for RP-ACK.
+	CPData data;
+	try {
+		data.parse(*CM);
+		delete CM;
+		LOG(DEBUG) << "CPData " << data;
+	}
+	catch (SMSReadError) {
+		LOG(WARN) << "SMS parsing failed (above L3)";
+		// Cause 95, "semantically incorrect message".
+		LCH->send(CPError(0,TI,95),3);
+		throw UnexpectedMessage();
+	}
+	catch (L3ReadError) {
+		LOG(WARN) << "SMS parsing failed (in L3)";
+		throw UnsupportedMessage();
+	}
+
+	// FIXME -- Check SMS reference.
+
+	bool success = true;
+	if (data.RPDU().MTI()!=RPMessage::Ack) {
+		LOG(WARN) << "unexpected RPDU " << data.RPDU();
+		success = false;
+	}
+
+	// Step 4
+	// Send CP-ACK to the MS.
+	LOG(INFO) << "MTSMS: sending CPAck";
+	LCH->send(CPAck(0,TI),3);
+	return success;
+}
 
 
 // Some utils for the RRLP hack below

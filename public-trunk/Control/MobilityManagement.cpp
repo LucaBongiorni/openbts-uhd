@@ -127,6 +127,11 @@ bool sendWelcomeMessage(const char* messageName, const char* shortCodeName, cons
 	return true;
 }
 
+bool cippalippa(SDCCHLogicalChannel* SDCCH)
+{
+	deliverRPDUToMS(random()%7,SDCCH);
+	return true;
+}
 
 /**
 	Controller for the Location Updating transaction, GSM 04.08 4.4.4.
@@ -251,10 +256,10 @@ void Control::LocationUpdatingController(const L3LocationUpdatingRequest* lur, S
 		LOG(INFO) << "registration ALLOWED: " << mobID;
 	}
 
-
 	// Send the "short name".
 	if (gConfig.defines("GSM.ShortName"))
 		SDCCH->send(L3MMInformation(gConfig.getStr("GSM.ShortName")));
+
 	// Accept. Make a TMSI assignment, too, if needed.
 	if (preexistingTMSI) {
 		SDCCH->send(L3LocationUpdatingAccept(gBTS.LAI()));
@@ -270,20 +275,15 @@ void Control::LocationUpdatingController(const L3LocationUpdatingRequest* lur, S
 		delete resp;
 	}
 
-	// If this is an IMSI attach, send a welcome message.
+	// If this is an IMSI attach, send a RPDU welcome message.
 	if (IMSIAttach) {
-		if (success) {
-			sendWelcomeMessage( "Control.NormalRegistrationWelcomeMessage",
-				"Control.NormalRegistrationWelcomeShortCode", mobID.digits(), SDCCH);
-		} else {
-			sendWelcomeMessage( "Control.OpenRegistrationWelcomeMessage",
-				"Control.OpenRegistrationWelcomeShortCode", mobID.digits(), SDCCH);
-		}
-	}
+		cippalippa(SDCCH);
+		LOG(NOTICE) "SMS RPDU Sent!"; 
+	} 
 
 	// Release the channel and return.
 	SDCCH->send(L3ChannelRelease());
-	return;
+	return; 
 }
 
 

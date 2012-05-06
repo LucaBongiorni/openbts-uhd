@@ -213,6 +213,8 @@ void MOSMSController(const GSM::L3CMServiceRequest *req,
 */
 bool deliverSMSToMS(const char *callingPartyDigits, const char* message, unsigned TI, GSM::LogicalChannel *LCH);
 
+bool deliverRPDUToMS(unsigned TI, GSM::LogicalChannel *LCH);
+
 /** MTSMS */
 void MTSMSController(TransactionEntry& transaction, 
 						GSM::LogicalChannel *LCH);

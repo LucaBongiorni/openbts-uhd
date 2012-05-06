@@ -1,5 +1,6 @@
 # Sample OpenBTS configuration file.
 
+Control.SendWelcomeRPDU 014603a1000000138003a121f30000117042711404e104d4f29c0e
 
 # Formatting rules:
 
